@@ -94,9 +94,10 @@ async function mergeChunks() {
         input: readStream,
         crlfDelay: Infinity
       });
-  
+      readStream.pipe(writeStream);
       rl.on('line', (line) => {
-        writeStream.write(line + '\n');
+        //writeStream.write(line + '\n');
+        readStream.pipe(writeStream);
       });
   
       rl.on('close', () => {
