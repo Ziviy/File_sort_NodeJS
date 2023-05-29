@@ -1,4 +1,4 @@
-//const gen = require('./generation');
+const gen = require('./generation');
 const fs = require('fs');
 const readline = require('readline');
 
@@ -154,8 +154,8 @@ async function mergeChunks() {
 // 1000000000 - 10.87gb
 
 
-//gen.generateFileWithRows(100000);
-SortFile();
+gen.generateFileWithRows(100000);
+//SortFile();
 
 // const used = process.memoryUsage();
 // console.log(`Memory usage: ${Math.round(used.heapUsed / 1024 / 1024 * 100) / 100} MB`);
