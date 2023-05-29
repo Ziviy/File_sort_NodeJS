@@ -8,7 +8,7 @@ let chunkIndex = 0;
 const inputFile = 'Files/originalFile.txt';
 const outputFile = 'Files/sortedFile.txt';
 
-const chunkSize = 30 * 1024 * 1024; //1mb
+const chunkSize = 1 * 1024 * 1024; //1mb
 
 async function SortFile() {
     await ReadFile();
@@ -63,8 +63,30 @@ async function mergeChunks() {
     const chunkFiles = await findChunkFiles();
     const writeStream = fs.createWriteStream(outputFile, { encoding: 'utf-8' });
   
-    for (const chunkFile of chunkFiles) {
-      await mergeChunkFile(chunkFile, writeStream);
+    const chunkReaders = chunkFiles.map((chunkFile) => createChunkReader(chunkFile));
+    const linePromises = chunkReaders.map((chunkReader) => getNextLine(chunkReader));
+  
+    while (linePromises.length > 0) {
+      const lines = await Promise.all(linePromises);
+  
+      let smallestLine = null;
+      let smallestLineIndex = null;
+  
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (line !== null && (smallestLine === null || line < smallestLine)) {
+          smallestLine = line;
+          smallestLineIndex = i;
+        }
+      }
+  
+      if (smallestLine !== null) {
+        writeStream.write(smallestLine + '\n');
+        linePromises[smallestLineIndex] = getNextLine(chunkReaders[smallestLineIndex]);
+      } else {
+        linePromises.splice(smallestLineIndex, 1);
+        chunkReaders.splice(smallestLineIndex, 1);
+      }
     }
   
     writeStream.end();
@@ -87,27 +109,24 @@ async function mergeChunks() {
     });
   }
   
-  async function mergeChunkFile(chunkFile, writeStream) {
-    return new Promise((resolve, reject) => {
-      const readStream = fs.createReadStream(`Files/${chunkFile}`, { encoding: 'utf-8' });
-      const rl = readline.createInterface({
-        input: readStream,
-        crlfDelay: Infinity
-      });
-      readStream.pipe(writeStream);
-      rl.on('line', (line) => {
-        //writeStream.write(line + '\n');
-        readStream.pipe(writeStream);
-      });
-  
-      rl.on('close', () => {
-        resolve();
-      });
-  
-      rl.on('error', (error) => {
-        reject(error);
-      });
+  function createChunkReader(chunkFile) {
+    const readStream = fs.createReadStream(`Files/${chunkFile}`, { encoding: 'utf-8' });
+    const rl = readline.createInterface({
+      input: readStream,
+      crlfDelay: Infinity
     });
+  
+    const chunkReader = {
+      rl,
+      lineIterator: rl[Symbol.asyncIterator]()
+    };
+  
+    return chunkReader;
+  }
+  
+  async function getNextLine(chunkReader) {
+    const { value, done } = await chunkReader.lineIterator.next();
+    return done ? null : value;
   }
   
   async function deleteChunkFiles(chunkFiles) {
@@ -128,13 +147,14 @@ async function mergeChunks() {
       }
     });
   }
+  
 
 // 10000000 - 187mb
 // 100000000 - 1.87gb
 // 1000000000 - 10.87gb
 
 
-//gen.generateFileWithRows(100000000);
+//gen.generateFileWithRows(100000);
 SortFile();
 
 // const used = process.memoryUsage();
